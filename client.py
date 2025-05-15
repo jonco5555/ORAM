@@ -17,7 +17,24 @@ class Client:
         self._position_map[block_id] = new_position
 
     def store_data(self, server: Server, id: int, data: str):
-        pass
+        leaf_index = self._position_map.get(id)
+        self.remap_block(id)
+        if not leaf_index:  # if new block
+            leaf_index = self._position_map.get(id)
+        path = server.get_path(leaf_index)
+        self._update_stash(path, id)
+
+        # write new data to stash
+        for block in self._stash:
+            if block._id == id:
+                block._data = data
+                break
+        else:
+            # if block not found in stash, add it
+            self._stash.append(Block(id, data))
+
+        self._build_new_path(server, leaf_index, len(path))
+        server.write_path(path)
 
     def retrieve_data(self, server: Server, id: int):
         leaf_index = self._position_map.get(id)
@@ -25,22 +42,34 @@ class Client:
             return None
         self.remap_block(id)
         path = server.get_path(leaf_index)
+        return_block = self._update_stash(path, id)
+        path = self._build_new_path(server, leaf_index, len(path))
+        server.write_path(path)
+        return return_block
 
+    def delete_data(self, server: Server, id: int, data: str):
+        pass
+
+    def _update_stash(self, path: List[Bucket], id: int) -> Block:
         # add the blocks in the path to the stash
         for bucket in path:
             for block in bucket._blocks:
                 if block._id != -1:  # not a dummy block
                     self._stash.append(block)
+                if block._id == id:  # desired block
+                    return_block = block
+        return return_block
 
+    def _build_new_path(self, leaf_index: int, path_length: int) -> List[Bucket]:
         # write to path all the blocks in the stash that are mapped to the same leaf
-        # and remove the from the stash
-        new_path = [Bucket() for _ in path]
+        # and remove them from the stash
+        path = [Bucket() for _ in range(path_length)]
         blocks_to_remove = []
         bucket_index = 0
         block_index = 0
         for block in self._stash:
             if self._position_map.get(block._id) == leaf_index:
-                new_path[bucket_index]._blocks[block_index] = block
+                path[bucket_index]._blocks[block_index] = block
                 blocks_to_remove.append(block)
                 block_index += 1
                 if block_index == self._num_blocks_per_bucket:  # full bucket
@@ -51,12 +80,4 @@ class Client:
         for block in blocks_to_remove:
             self._stash.remove(block)
 
-        server.write_path(new_path)
-
-        # return the desired block
-        for block in self._stash:
-            if block._id == id:
-                return block._data
-
-    def delete_data(self, server: Server, id: int, data: str):
-        pass
+        return path
