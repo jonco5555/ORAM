@@ -2,7 +2,7 @@ import math
 import random
 import logging
 from typing import List
-from server import Block, Bucket, Server
+from src.server import Block, Bucket, Server
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -38,7 +38,7 @@ class Client:
         self._logger.debug(f"Stash updated with block {id}.")
 
         path = self._build_new_path(leaf_index, len(path))
-        server.write_path(path, leaf_index)
+        server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} stored successfully.")
 
     def retrieve_data(self, server: Server, id: int) -> str:
@@ -51,7 +51,7 @@ class Client:
         path = server.get_path(leaf_index)
         self._update_stash(path, id)
         path = self._build_new_path(leaf_index, len(path))
-        server.write_path(path, leaf_index)
+        server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} retrieved successfully.")
         return self._stash.get(id)._data
 
@@ -66,7 +66,7 @@ class Client:
         del self._stash[id]
         self._logger.debug(f"Block {id} removed from stash.")
         path = self._build_new_path(leaf_index, len(path))
-        server.write_path(path, leaf_index)
+        server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} deleted successfully.")
 
     def _update_stash(self, path: List[Bucket], id: int) -> None:

@@ -1,27 +1,17 @@
+from src.server import Server, Bucket
 import pytest
-from server import Server, TreeNode, Bucket
 
 
-def generate_tree_heights():
-    for h in range(6):
-        for id in range(int(2 ** (h - 1))):
-            yield h, id
-
-
-@pytest.mark.parametrize("tree_height, id", generate_tree_heights())
-def test_read_path(tree_height, id):
-    if id >= 2 ** (tree_height - 1):
-        pytest.skip(
-            f"Skipping id {id} as it is out of range for tree_height {tree_height}"
-        )
-
-    server = Server(tree_height=tree_height)
-    path = server.read_path(id)
-
-    # Validate the path contains the correct number of nodes
-    assert len(path) == tree_height + 1
-
-    # Validate each node in the path is a TreeNode containing a Bucket
-    for node in path:
-        assert isinstance(node, TreeNode)
-        assert isinstance(node._value, Bucket)
+@pytest.mark.parametrize("leaf_index", [0, 1, 2, 3])
+@pytest.mark.parametrize("depth", [0, 1, 2, 3, 4])
+@pytest.mark.parametrize("blocks_per_bucket", [3, 4, 5])
+def test_get_path(depth, blocks_per_bucket, leaf_index):
+    if leaf_index >= 2 ** (depth - 1):
+        pytest.skip(f"Skipping test for leaf_index {leaf_index} at depth {depth}.")
+    num_blocks = int(2 ** (depth + 1) - 1) * blocks_per_bucket
+    server = Server(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    path = server.get_path(leaf_index)
+    assert len(path) == depth + 1, f"Path length mismatch for leaf_index {leaf_index}"
+    assert all(isinstance(bucket, Bucket) for bucket in path), (
+        "Path contains non-Bucket elements"
+    )

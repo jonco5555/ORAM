@@ -28,11 +28,11 @@ class Block:
         """
         return f"({self._id},{self._data})"
 
-    def __repr__(self) -> str:
-        """
-        Returns a string representation of the block, showing its ID and data.
-        """
-        return self.__str__()
+    # def __repr__(self) -> str:
+    #     """
+    #     Returns a string representation of the block, showing its ID and data.
+    #     """
+    #     return self.__str__()
 
 
 class Bucket:
@@ -45,11 +45,11 @@ class Bucket:
         """
         return f"[{', '.join(str(block) for block in self._blocks)}]"
 
-    def __repr__(self) -> str:
-        """
-        Returns a string representation of the block, showing its ID and data.
-        """
-        return self.__str__()
+    # def __repr__(self) -> str:
+    #     """
+    #     Returns a string representation of the block, showing its ID and data.
+    #     """
+    #     return self.__str__()
 
 
 class TreeNode[T]:
@@ -79,7 +79,7 @@ class Server:
         """
         Retrieve the path from the root of the tree to the specified leaf.
 
-        This method run through the tree from the root to the leaf, and collects the
+        This method runs through the tree from the root to the leaf and collects the
         buckets. The path is determined by the binary representation of `leaf_index`,
         where each bit indicates whether to move to the left (0) or right (1) child
         at each level of the tree.
@@ -89,8 +89,15 @@ class Server:
 
         Returns:
             List[Bucket]: A list of `Bucket` objects representing the values of
-                  the nodes along the path from the root to the specified leaf
+              the nodes along the path from the root to the specified leaf
+
+        Raises:
+            ValueError: If the `leaf_index` is out of bounds for the tree height
         """
+        if leaf_index < 0 or leaf_index >= 2**self._tree_height:
+            raise ValueError(
+                f"Leaf index {leaf_index} is out of bounds for tree height {self._tree_height}"
+            )
         self._logger.debug(f"Retrieving path for leaf index {leaf_index}")
         node = self._root
         path = [node._value]
@@ -103,17 +110,24 @@ class Server:
                 node = node._left
         return path
 
-    def write_path(self, path: List[Bucket], leaf_index: int) -> None:
+    def set_path(self, path: List[Bucket], leaf_index: int) -> None:
         """
         Write the specified path to the tree on the path to the leaf
 
-        This method run through the tree from the root to the leaf, and writes the
+        This method runs through the tree from the root to the leaf, and writes the
         provided path of `Bucket` objects to the corresponding nodes in the tree.
 
         Args:
             path (List[Bucket]): The list of `Bucket` objects to write to the tree
             leaf_index (int): The index of the leaf to write the path for
+
+        Raises:
+            ValueError: If the `leaf_index` is out of bounds for the tree height
         """
+        if leaf_index < 0 or leaf_index >= 2**self._tree_height:
+            raise ValueError(
+                f"Leaf index {leaf_index} is out of bounds for tree height {self._tree_height}"
+            )
         self._logger.debug(f"Writing path for leaf index {leaf_index}")
         node = self._root
         self._root._value = path.pop()
