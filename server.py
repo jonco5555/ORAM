@@ -7,9 +7,14 @@
 # 2 ** L Number of leaves =  (N / Z) / 2
 
 
+import logging
 import math
 from typing import List
 from collections import deque
+
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 
 class Block:
@@ -23,6 +28,12 @@ class Block:
         """
         return f"({self._id},{self._data})"
 
+    def __repr__(self) -> str:
+        """
+        Returns a string representation of the block, showing its ID and data.
+        """
+        return self.__str__()
+
 
 class Bucket:
     def __init__(self, num_blocks: int = 4) -> None:
@@ -34,6 +45,12 @@ class Bucket:
         """
         return f"[{', '.join(str(block) for block in self._blocks)}]"
 
+    def __repr__(self) -> str:
+        """
+        Returns a string representation of the block, showing its ID and data.
+        """
+        return self.__str__()
+
 
 class TreeNode[T]:
     def __init__(self, value: T) -> None:
@@ -44,14 +61,16 @@ class TreeNode[T]:
 
 class Server:
     def __init__(self, num_blocks: int = 124, blocks_per_bucket: int = 4) -> None:
+        self._logger = logging.getLogger(__name__)
         self._num_blocks = num_blocks
-        self._tree_height = math.log2(num_blocks // blocks_per_bucket + 1) - 1
+        self._blocks_per_bucket = blocks_per_bucket
+        self._tree_height = int(math.log2(num_blocks // blocks_per_bucket + 1)) - 1
         self._root = self.initialize_tree(self._tree_height)
 
     def initialize_tree(self, depth: int) -> TreeNode[Bucket]:
         if depth < 0:
             return None
-        node = TreeNode(Bucket())
+        node = TreeNode(Bucket(self._blocks_per_bucket))
         node._left = self.initialize_tree(depth - 1)
         node._right = self.initialize_tree(depth - 1)
         return node
@@ -72,6 +91,7 @@ class Server:
             List[Bucket]: A list of `Bucket` objects representing the values of
                   the nodes along the path from the root to the specified leaf
         """
+        self._logger.debug(f"Retrieving path for leaf index {leaf_index}")
         node = self._root
         path = [node._value]
         for level in range(self._tree_height - 1, -1, -1):
@@ -94,6 +114,7 @@ class Server:
             path (List[Bucket]): The list of `Bucket` objects to write to the tree
             leaf_index (int): The index of the leaf to write the path for
         """
+        self._logger.debug(f"Writing path for leaf index {leaf_index}")
         node = self._root
         self._root._value = path.pop()
         for level in range(self._tree_height - 1, -1, -1):
@@ -143,8 +164,3 @@ class Server:
             print(
                 f"Level {current_level}: {' '.join(str(n._value) for n in level_nodes)}"
             )
-
-
-if __name__ == "__main__":
-    server = Server()
-    server.print_tree()
