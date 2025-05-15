@@ -12,38 +12,39 @@ import math
 from typing import List
 from collections import deque
 
+from pydantic import BaseModel
+
+
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
-class Block:
-    def __init__(self, id: int = -1, data: str = "xxxx") -> None:
-        self._id = id
-        self._data = data
+# def __str__(self) -> str:
+#     """
+#     Returns a string representation of the block, showing its ID and data.
+#     """
+#     return f"({self._id},{self._data})"
 
-    def __str__(self) -> str:
-        """
-        Returns a string representation of the block, showing its ID and data.
-        """
-        return f"({self._id},{self._data})"
-
-    # def __repr__(self) -> str:
-    #     """
-    #     Returns a string representation of the block, showing its ID and data.
-    #     """
-    #     return self.__str__()
+# def __repr__(self) -> str:
+#     """
+#     Returns a string representation of the block, showing its ID and data.
+#     """
+#     return self.__str__()
 
 
-class Bucket:
+# server should use strings and not blocks
+class Bucket(BaseModel):
+    blocks: List[str]
+
     def __init__(self, num_blocks: int = 4) -> None:
-        self._blocks = [Block() for _ in range(num_blocks)]
+        super().__init__(blocks=["xxxx" for _ in range(num_blocks)])
 
-    def __str__(self) -> str:
-        """
-        Returns a string representation of the bucket, showing the IDs of the blocks.
-        """
-        return f"[{', '.join(str(block) for block in self._blocks)}]"
+    # def __str__(self) -> str:
+    #     """
+    #     Returns a string representation of the bucket, showing the IDs of the blocks.
+    #     """
+    #     return f"[{', '.join(str(block) for block in self._blocks)}]"
 
     # def __repr__(self) -> str:
     #     """

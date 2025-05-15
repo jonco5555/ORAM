@@ -12,8 +12,8 @@ def test_retrieve_data_existing_block():
     blocks_per_bucket = 2
     num_blocks = 14
     bucket = Bucket(blocks_per_bucket)
-    block = Block(block_id, block_data)
-    bucket._blocks[0] = block
+    block = Block(id=block_id, data=block_data)
+    bucket.blocks[0] = block
 
     server = Server(num_blocks=14, blocks_per_bucket=blocks_per_bucket)  # L=2
     server.get_path = MagicMock(
@@ -29,10 +29,21 @@ def test_retrieve_data_existing_block():
 
     # Assert
     assert result == block_data
-    assert client._stash[block_id]._data == block._data
+    assert client._stash[block_id].data == block.data
     assert client._position_map[block_id] == new_leaf_index
     server.get_path.assert_called_once_with(leaf_index)
     path, index = server.set_path.call_args[0]
     for bucket in path:
-        assert bucket._blocks[0]._id == -1
+        assert bucket.blocks[0].id == -1
     assert index == leaf_index
+
+
+def test_new_data_to_same_path_leaves_stash_empty():
+    server = Server(num_blocks=6, blocks_per_bucket=2)
+    client = Client(num_blocks=6, blocks_per_bucket=2)
+
+    with patch("random.randint", return_value=1):
+        client.store_data(server, 1, "abcd")
+        client.store_data(server, 2, "efgh")
+
+    assert not client._stash

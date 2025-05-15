@@ -2,11 +2,18 @@ import math
 import random
 import logging
 from typing import List
-from src.server import Block, Bucket, Server
+
+from pydantic import BaseModel
+from src.server import Bucket, Server
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+
+
+class Block(BaseModel):
+    id: int = -1
+    data: str = "xxxx"
 
 
 class Client:
@@ -34,7 +41,7 @@ class Client:
         self._update_stash(path, id)
 
         # write new data to stash
-        self._stash[id] = Block(id, data)
+        self._stash[id] = Block(id=id, data=data)
         self._logger.debug(f"Stash updated with block {id}.")
 
         path = self._build_new_path(leaf_index, len(path))
@@ -53,7 +60,7 @@ class Client:
         path = self._build_new_path(leaf_index, len(path))
         server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} retrieved successfully.")
-        return self._stash.get(id)._data
+        return self._stash.get(id).data
 
     def delete_data(self, server: Server, id: int):
         self._logger.info(f"Deleting data for block {id}.")
@@ -72,10 +79,9 @@ class Client:
     def _update_stash(self, path: List[Bucket], id: int) -> None:
         self._logger.debug(f"Updating stash with path for block {id}.")
         for bucket in path:
-            for block in bucket._blocks:
-                if block._id != -1:  # not a dummy block
-                    self._stash[id] = block
-        self._logger.debug(f"Stash updated for block {id}.")
+            for block in bucket.blocks:
+                if block.id != -1:  # not a dummy block
+                    self._stash[block.id] = block
 
     def _build_new_path(self, leaf_index: int, path_length: int) -> List[Bucket]:
         self._logger.debug(f"Building new path for leaf index {leaf_index}.")
@@ -83,15 +89,13 @@ class Client:
         bucket_index = 0
         block_index = 0
         for block in list(self._stash.values()):
-            if self._position_map.get(block._id) == leaf_index:
-                path[bucket_index]._blocks[block_index] = block
-                del self._stash[block._id]
+            if self._position_map.get(block.id) == leaf_index:
+                path[bucket_index].blocks[block_index] = block
+                del self._stash[block.id]
                 block_index += 1
                 if block_index == self._num_blocks_per_bucket:  # full bucket
                     bucket_index += 1
                     block_index = 0
-
-        self._logger.debug(f"New path built for leaf index {leaf_index}.")
         return path
 
     def print_stash(self):
