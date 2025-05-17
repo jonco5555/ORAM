@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
-from src.client import Client
-from src.server import Server, Block, Bucket
+from src.client import Block, Client
+from src.server import Server, Bucket
 
 
 def test_retrieve_data_existing_block():
@@ -13,7 +13,7 @@ def test_retrieve_data_existing_block():
     num_blocks = 14
     bucket = Bucket(blocks_per_bucket)
     block = Block(id=block_id, data=block_data)
-    bucket.blocks[0] = block
+    bucket.blocks[0] = block.model_dump_json()
 
     server = Server(num_blocks=14, blocks_per_bucket=blocks_per_bucket)  # L=2
     server.get_path = MagicMock(
@@ -33,6 +33,7 @@ def test_retrieve_data_existing_block():
     assert client._position_map[block_id] == new_leaf_index
     server.get_path.assert_called_once_with(leaf_index)
     path, index = server.set_path.call_args[0]
+    client._parse_path(path)
     for bucket in path:
         assert bucket.blocks[0].id == -1
     assert index == leaf_index

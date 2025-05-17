@@ -38,7 +38,7 @@ class Bucket(BaseModel):
     blocks: List[str]
 
     def __init__(self, num_blocks: int = 4) -> None:
-        super().__init__(blocks=["xxxx" for _ in range(num_blocks)])
+        super().__init__(blocks=['{"id":-1,"data":"xxxx"}' for _ in range(num_blocks)])
 
     # def __str__(self) -> str:
     #     """

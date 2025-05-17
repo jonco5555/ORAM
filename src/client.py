@@ -38,6 +38,7 @@ class Client:
             leaf_index = self._position_map.get(id)
         self._logger.debug(f"Leaf index for block {id}: {leaf_index}.")
         path = server.get_path(leaf_index)
+        self._parse_path(path)
         self._update_stash(path, id)
 
         # write new data to stash
@@ -56,19 +57,21 @@ class Client:
             return None
         self.remap_block(id)
         path = server.get_path(leaf_index)
+        self._parse_path(path)
         self._update_stash(path, id)
         path = self._build_new_path(leaf_index, len(path))
         server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} retrieved successfully.")
         return self._stash.get(id).data
 
-    def delete_data(self, server: Server, id: int):
+    def delete_data(self, server: Server, id: int) -> None:
         self._logger.info(f"Deleting data for block {id}.")
         leaf_index = self._position_map.get(id)
         if leaf_index is None:
             self._logger.warning(f"Block {id} not found.")
             return None
         path = server.get_path(leaf_index)
+        self._parse_path(path)
         self._update_stash(path, id)
         del self._stash[id]
         self._logger.debug(f"Block {id} removed from stash.")
@@ -90,13 +93,18 @@ class Client:
         block_index = 0
         for block in list(self._stash.values()):
             if self._position_map.get(block.id) == leaf_index:
-                path[bucket_index].blocks[block_index] = block
+                path[bucket_index].blocks[block_index] = block.model_dump_json()
                 del self._stash[block.id]
                 block_index += 1
                 if block_index == self._num_blocks_per_bucket:  # full bucket
                     bucket_index += 1
                     block_index = 0
         return path
+
+    def _parse_path(self, path: List[Bucket]) -> None:
+        for bucket in path:
+            for i, block in enumerate(bucket.blocks):
+                bucket.blocks[i] = Block.model_validate_json(block)
 
     def print_stash(self):
         """Prints the current contents of the stash."""
