@@ -1,11 +1,12 @@
+import logging
 import math
 import random
-import logging
-from typing import List
+from typing import List, Tuple
 
-from pydantic import BaseModel
-from src.server import Bucket, Server
 from cryptography.fernet import Fernet
+from pydantic import BaseModel
+
+from src.server import Server
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -15,6 +16,16 @@ logging.basicConfig(
 class Block(BaseModel):
     id: int = -1
     data: str = "xxxx"
+
+
+class Bucket(BaseModel):
+    blocks: List[Block]
+
+    def __init__(self, num_blocks: int = 4, blocks: List[Block] = None, **data) -> None:
+        if blocks:
+            super().__init__(blocks=blocks, **data)
+        else:
+            super().__init__(blocks=[Block() for _ in range(num_blocks)], **data)
 
 
 class Client:
@@ -41,14 +52,15 @@ class Client:
             leaf_index = self._position_map.get(id)
         self._logger.debug(f"Leaf index for block {id}: {leaf_index}.")
         path = server.get_path(leaf_index)
-        self._decrypt_and_parse_path(path)
+        path = self._decrypt_and_parse_path(path)
         self._update_stash(path, id)
 
         # write new data to stash
         self._stash[id] = Block(id=id, data=data)
         self._logger.debug(f"Stash updated with block {id}.")
 
-        path = self._build_new_path(leaf_index, len(path))
+        path, _ = self._build_new_path(leaf_index, len(path), id)
+        path = self._unparse_and_encrypt_path(path)
         server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} stored successfully.")
 
@@ -60,12 +72,13 @@ class Client:
             return None
         self.remap_block(id)
         path = server.get_path(leaf_index)
-        self._decrypt_and_parse_path(path)
+        path = self._decrypt_and_parse_path(path)
         self._update_stash(path, id)
-        path = self._build_new_path(leaf_index, len(path))
+        path, block = self._build_new_path(leaf_index, len(path), id)
+        path = self._unparse_and_encrypt_path(path)
         server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} retrieved successfully.")
-        return self._stash.get(id).data
+        return block.data
 
     def delete_data(self, server: Server, id: int) -> None:
         self._logger.info(f"Deleting data for block {id}.")
@@ -74,11 +87,13 @@ class Client:
             self._logger.warning(f"Block {id} not found.")
             return None
         path = server.get_path(leaf_index)
-        self._decrypt_and_parse_path(path)
+        path = self._decrypt_and_parse_path(path)
         self._update_stash(path, id)
         del self._stash[id]
+        del self._position_map[id]
         self._logger.debug(f"Block {id} removed from stash.")
-        path = self._build_new_path(leaf_index, len(path))
+        path, _ = self._build_new_path(leaf_index, len(path), id)
+        path = self._unparse_and_encrypt_path(path)
         server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} deleted successfully.")
 
@@ -89,36 +104,53 @@ class Client:
                 if block.id != -1:  # not a dummy block
                     self._stash[block.id] = block
 
-    def _build_new_path(self, leaf_index: int, path_length: int) -> List[Bucket]:
+    def _build_new_path(
+        self, leaf_index: int, path_length: int, id: int
+    ) -> Tuple[List[Bucket], Block]:
         self._logger.debug(f"Building new path for leaf index {leaf_index}.")
         path = [Bucket(self._num_blocks_per_bucket) for _ in range(path_length)]
         bucket_index = 0
         block_index = 0
+        block_to_return = None
         for block in list(self._stash.values()):
+            if block.id == id:
+                block_to_return = block
             if self._position_map.get(block.id) == leaf_index:
-                path[bucket_index].blocks[block_index] = self._cipher.encrypt(
-                    block.model_dump_json().encode()
-                )
+                path[bucket_index].blocks[block_index] = block
                 del self._stash[block.id]
                 block_index += 1
                 if block_index == self._num_blocks_per_bucket:  # full bucket
                     bucket_index += 1
                     block_index = 0
-        return path
+        return path, block_to_return
 
-    def _decrypt_and_parse_path(self, path: List[Bucket]) -> None:
+    def _decrypt_and_parse_path(self, path: List[List[bytes]]) -> List[Bucket]:
+        new_path = []
         for bucket in path:
-            for i, block in enumerate(bucket.blocks):
-                bucket.blocks[i] = Block.model_validate_json(
-                    self._cipher.decrypt(block).decode()
-                )
+            blocks = [
+                Block.model_validate_json(self._cipher.decrypt(data).decode())
+                for data in bucket
+            ]
+            new_path.append(Bucket(blocks=blocks))
+        return new_path
 
-    def _unparse_and_encrypt_path(self, path: List[Bucket]) -> None:
+    def _unparse_and_encrypt_path(self, path: List[Bucket]) -> List[List[bytes]]:
+        server_path = []
         for bucket in path:
-            for i, block in enumerate(bucket.blocks):
-                bucket.blocks[i] = self._cipher.encrypt(
-                    block.model_dump_json().encode()
-                )
+            bucket_data = [
+                self._cipher.encrypt(block.model_dump_json().encode())
+                for block in bucket.blocks
+            ]
+            server_path.append(bucket_data)
+        return server_path
+
+    def _initialize_server_tree(self, server: Server) -> None:
+        dummy_elements = [
+            Bucket(self._num_blocks_per_bucket)
+            for _ in range(self._num_blocks // self._num_blocks_per_bucket)
+        ]
+        dummy_elements = self._unparse_and_encrypt_path(dummy_elements)
+        server.initialize_tree(dummy_elements)
 
     def print_stash(self):
         """Prints the current contents of the stash."""
@@ -132,8 +164,9 @@ class Client:
 
 if __name__ == "__main__":
     server = Server(num_blocks=14, blocks_per_bucket=2)
-    server.print_tree()
     client = Client(num_blocks=14, blocks_per_bucket=2)
+    client._initialize_server_tree(server)
+    server.print_tree()
     client.store_data(server, 1, "abcd")
     server.print_tree()
     print(client._stash)

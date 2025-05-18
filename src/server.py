@@ -10,49 +10,16 @@
 import logging
 import math
 from typing import List
-from collections import deque
 
 from pydantic import BaseModel
-
-from src.client import Block
-
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
-# def __str__(self) -> str:
-#     """
-#     Returns a string representation of the block, showing its ID and data.
-#     """
-#     return f"({self._id},{self._data})"
-
-# def __repr__(self) -> str:
-#     """
-#     Returns a string representation of the block, showing its ID and data.
-#     """
-#     return self.__str__()
-
-
-# server should use strings and not blocks
 class Bucket(BaseModel):
-    blocks: List[str | Block]
-
-    def __init__(self, num_blocks: int = 4) -> None:
-        super().__init__(blocks=['{"id":-1,"data":"xxxx"}' for _ in range(num_blocks)])
-
-    # def __str__(self) -> str:
-    #     """
-    #     Returns a string representation of the bucket, showing the IDs of the blocks.
-    #     """
-    #     return f"[{', '.join(str(block) for block in self._blocks)}]"
-
-    # def __repr__(self) -> str:
-    #     """
-    #     Returns a string representation of the block, showing its ID and data.
-    #     """
-    #     return self.__str__()
+    blocks: List[bytes]
 
 
 class TreeNode[T]:
@@ -68,17 +35,20 @@ class Server:
         self._num_blocks = num_blocks
         self._blocks_per_bucket = blocks_per_bucket
         self._tree_height = int(math.log2(num_blocks // blocks_per_bucket + 1)) - 1
-        self._root = self.initialize_tree(self._tree_height)
+        self._root: TreeNode[Bucket] = None
 
-    def initialize_tree(self, depth: int) -> TreeNode[Bucket]:
-        if depth < 0:
-            return None
-        node = TreeNode(Bucket(self._blocks_per_bucket))
-        node._left = self.initialize_tree(depth - 1)
-        node._right = self.initialize_tree(depth - 1)
-        return node
+    def initialize_tree(self, elements: List[List[bytes]]) -> TreeNode[Bucket]:
+        def recursive_init(depth: int, i: int) -> TreeNode[Bucket]:
+            if depth < 0:
+                return None
+            node = TreeNode(Bucket(blocks=elements[i]))
+            node._left = recursive_init(depth - 1, i + 1)
+            node._right = recursive_init(depth - 1, i + 2)
+            return node
 
-    def get_path(self, leaf_index: int) -> List[Bucket]:
+        self._root = recursive_init(self._tree_height, 0)
+
+    def get_path(self, leaf_index: int) -> List[List[bytes]]:
         """
         Retrieve the path from the root of the tree to the specified leaf.
 
@@ -91,8 +61,8 @@ class Server:
             leaf_index (int): The index of the leaf node to retrieve the path for
 
         Returns:
-            List[Bucket]: A list of `Bucket` objects representing the values of
-              the nodes along the path from the root to the specified leaf
+            List[List[str]]: A list of buckets represented as list of bytes, representing
+              the values of the nodes along the path from the root to the specified leaf
 
         Raises:
             ValueError: If the `leaf_index` is out of bounds for the tree height
@@ -103,17 +73,17 @@ class Server:
             )
         self._logger.debug(f"Retrieving path for leaf index {leaf_index}")
         node = self._root
-        path = [node._value]
+        path = [node._value.blocks]
         for level in range(self._tree_height - 1, -1, -1):
             if (leaf_index >> level) & 1:
-                path.append(node._right._value)
+                path.append(node._right._value.blocks)
                 node = node._right
             else:
-                path.append(node._left._value)
+                path.append(node._left._value.blocks)
                 node = node._left
         return path
 
-    def set_path(self, path: List[Bucket], leaf_index: int) -> None:
+    def set_path(self, path: List[List[bytes]], leaf_index: int) -> None:
         """
         Write the specified path to the tree on the path to the leaf
 
@@ -121,7 +91,7 @@ class Server:
         provided path of `Bucket` objects to the corresponding nodes in the tree.
 
         Args:
-            path (List[Bucket]): The list of `Bucket` objects to write to the tree
+            path (List[List[bytes]]): The list of buckets to write to the tree
             leaf_index (int): The index of the leaf to write the path for
 
         Raises:
@@ -133,51 +103,11 @@ class Server:
             )
         self._logger.debug(f"Writing path for leaf index {leaf_index}")
         node = self._root
-        self._root._value = path.pop()
+        self._root._value.blocks = path.pop()
         for level in range(self._tree_height - 1, -1, -1):
             if (leaf_index >> level) & 1:
-                node._right._value = path.pop()
+                node._right._value.blocks = path.pop()
                 node = node._right
             else:
-                node._left._value = path.pop()
+                node._left._value.blocks = path.pop()
                 node = node._left
-
-    def print_tree(self) -> None:
-        """
-        Print the tree in a structured and readable format.
-
-        This method performs a level-order traversal of the tree and prints
-        each level on a new line, showing the structure of the tree.
-        """
-        if not self._root:
-            print("Tree is empty.")
-            return
-
-        queue = deque([(self._root, 0)])  # Queue to hold nodes and their levels
-        current_level = 0
-        level_nodes = []
-
-        while queue:
-            node, level = queue.popleft()
-
-            # If we move to a new level, print the collected nodes of the previous level
-            if level != current_level:
-                print(
-                    f"Level {current_level}: {' '.join(str(n._value) for n in level_nodes)}"
-                )
-                level_nodes = []
-                current_level = level
-
-            level_nodes.append(node)
-
-            # Add child nodes to the queue
-            if node._left:
-                queue.append((node._left, level + 1))
-            if node._right:
-                queue.append((node._right, level + 1))
-
-        # Print the last level
-        if level_nodes:
-            print(
-                f"Level {current_level}: {' '.join(str(n._value) for n in level_nodes)}"
-            )
