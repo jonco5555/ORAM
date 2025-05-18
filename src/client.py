@@ -5,6 +5,7 @@ from typing import List
 
 from pydantic import BaseModel
 from src.server import Bucket, Server
+from cryptography.fernet import Fernet
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -24,6 +25,8 @@ class Client:
         self._tree_height = int(math.log2(num_blocks // blocks_per_bucket + 1)) - 1
         self._stash: dict[int, Block] = {}  # Changed from List to dict
         self._position_map = {}
+        self._key = Fernet.generate_key()
+        self._cipher = Fernet(self._key)
 
     def remap_block(self, block_id: int):
         new_position = random.randint(0, int(2**self._tree_height) - 1)
@@ -38,7 +41,7 @@ class Client:
             leaf_index = self._position_map.get(id)
         self._logger.debug(f"Leaf index for block {id}: {leaf_index}.")
         path = server.get_path(leaf_index)
-        self._parse_path(path)
+        self._decrypt_and_parse_path(path)
         self._update_stash(path, id)
 
         # write new data to stash
@@ -57,7 +60,7 @@ class Client:
             return None
         self.remap_block(id)
         path = server.get_path(leaf_index)
-        self._parse_path(path)
+        self._decrypt_and_parse_path(path)
         self._update_stash(path, id)
         path = self._build_new_path(leaf_index, len(path))
         server.set_path(path, leaf_index)
@@ -71,7 +74,7 @@ class Client:
             self._logger.warning(f"Block {id} not found.")
             return None
         path = server.get_path(leaf_index)
-        self._parse_path(path)
+        self._decrypt_and_parse_path(path)
         self._update_stash(path, id)
         del self._stash[id]
         self._logger.debug(f"Block {id} removed from stash.")
@@ -93,7 +96,9 @@ class Client:
         block_index = 0
         for block in list(self._stash.values()):
             if self._position_map.get(block.id) == leaf_index:
-                path[bucket_index].blocks[block_index] = block.model_dump_json()
+                path[bucket_index].blocks[block_index] = self._cipher.encrypt(
+                    block.model_dump_json().encode()
+                )
                 del self._stash[block.id]
                 block_index += 1
                 if block_index == self._num_blocks_per_bucket:  # full bucket
@@ -101,10 +106,19 @@ class Client:
                     block_index = 0
         return path
 
-    def _parse_path(self, path: List[Bucket]) -> None:
+    def _decrypt_and_parse_path(self, path: List[Bucket]) -> None:
         for bucket in path:
             for i, block in enumerate(bucket.blocks):
-                bucket.blocks[i] = Block.model_validate_json(block)
+                bucket.blocks[i] = Block.model_validate_json(
+                    self._cipher.decrypt(block).decode()
+                )
+
+    def _unparse_and_encrypt_path(self, path: List[Bucket]) -> None:
+        for bucket in path:
+            for i, block in enumerate(bucket.blocks):
+                bucket.blocks[i] = self._cipher.encrypt(
+                    block.model_dump_json().encode()
+                )
 
     def print_stash(self):
         """Prints the current contents of the stash."""
@@ -113,7 +127,7 @@ class Client:
             print("[]")
         else:
             for block_id, block in self._stash.items():
-                print(f"Block ID: {block_id}, Data: {block._data}")
+                print(f"Block ID: {block_id}, Data: {block.data}")
 
 
 if __name__ == "__main__":

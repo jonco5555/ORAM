@@ -14,6 +14,8 @@ from collections import deque
 
 from pydantic import BaseModel
 
+from src.client import Block
+
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -35,7 +37,7 @@ logging.basicConfig(
 
 # server should use strings and not blocks
 class Bucket(BaseModel):
-    blocks: List[str]
+    blocks: List[str | Block]
 
     def __init__(self, num_blocks: int = 4) -> None:
         super().__init__(blocks=['{"id":-1,"data":"xxxx"}' for _ in range(num_blocks)])
