@@ -1,7 +1,7 @@
 import logging
 import math
 import random
-from typing import List, Tuple
+from typing import List
 
 from cryptography.fernet import Fernet
 from pydantic import BaseModel
@@ -59,7 +59,7 @@ class Client:
         self._stash[id] = Block(id=id, data=data)
         self._logger.debug(f"Stash updated with block {id}.")
 
-        path, _ = self._build_new_path(leaf_index, len(path), id)
+        path = self._build_new_path(leaf_index, len(path), id)
         path = self._unparse_and_encrypt_path(path)
         server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} stored successfully.")
@@ -74,7 +74,8 @@ class Client:
         path = server.get_path(leaf_index)
         path = self._decrypt_and_parse_path(path)
         self._update_stash(path, id)
-        path, block = self._build_new_path(leaf_index, len(path), id)
+        block = self._stash.get(id)
+        path = self._build_new_path(leaf_index, len(path), id)
         path = self._unparse_and_encrypt_path(path)
         server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} retrieved successfully.")
@@ -92,7 +93,7 @@ class Client:
         del self._stash[id]
         del self._position_map[id]
         self._logger.debug(f"Block {id} removed from stash.")
-        path, _ = self._build_new_path(leaf_index, len(path), id)
+        path = self._build_new_path(leaf_index, len(path), id)
         path = self._unparse_and_encrypt_path(path)
         server.set_path(path, leaf_index)
         self._logger.info(f"Data for block {id} deleted successfully.")
@@ -106,23 +107,39 @@ class Client:
 
     def _build_new_path(
         self, leaf_index: int, path_length: int, id: int
-    ) -> Tuple[List[Bucket], Block]:
+    ) -> List[Bucket]:
         self._logger.debug(f"Building new path for leaf index {leaf_index}.")
         path = [Bucket(self._num_blocks_per_bucket) for _ in range(path_length)]
-        bucket_index = 0
-        block_index = 0
-        block_to_return = None
-        for block in list(self._stash.values()):
-            if block.id == id:
-                block_to_return = block
-            if self._position_map.get(block.id) == leaf_index:
-                path[bucket_index].blocks[block_index] = block
-                del self._stash[block.id]
-                block_index += 1
-                if block_index == self._num_blocks_per_bucket:  # full bucket
-                    bucket_index += 1
-                    block_index = 0
-        return path, block_to_return
+
+        # Iterate over the tree levels from leaf to root
+        for depth in range(self._tree_height, -1, -1):
+            reachable_leaves = self._calculate_reachable_leaves(leaf_index, depth)
+            i = 0
+            j = 0
+            blocks_ids_in_stash = list(self._stash.keys())
+            while i < self._num_blocks_per_bucket and j < len(blocks_ids_in_stash):
+                block_id = blocks_ids_in_stash[j]
+                if self._position_map.get(block_id) in reachable_leaves:
+                    # If the block in the stash is reachable, add it to the path
+                    path[self._tree_height - depth].blocks[i] = self._stash[block_id]
+                    del self._stash[block_id]
+                    i += 1
+                j += 1
+
+        return path
+
+    def _calculate_reachable_leaves(self, leaf_index: int, depth: int) -> List[int]:
+        binary = format(leaf_index, f"0{self._tree_height}b")
+        # Get first depth bits (path so far)
+        path_bits = binary[:depth]
+        # Compute base index: decimal of path_bits * 2^(L-depth)
+        base = (
+            int(path_bits, 2) * (1 << (self._tree_height - depth)) if path_bits else 0
+        )
+        # Number of reachable leaves: 2^(L-depth)
+        num_leaves = 1 << (self._tree_height - depth)
+        # List of reachable leaves
+        return list(range(base, base + num_leaves))
 
     def _decrypt_and_parse_path(self, path: List[List[bytes]]) -> List[Bucket]:
         new_path = []
