@@ -38,12 +38,12 @@ class Server:
         self._root: TreeNode[Bucket] = None
 
     def initialize_tree(self, elements: List[List[bytes]]) -> TreeNode[Bucket]:
-        def recursive_init(depth: int, i: int) -> TreeNode[Bucket]:
-            if depth < 0:
+        def recursive_init(level: int, i: int) -> TreeNode[Bucket]:
+            if level < 0:
                 return None
             node = TreeNode(Bucket(blocks=elements[i]))
-            node._left = recursive_init(depth - 1, i + 1)
-            node._right = recursive_init(depth - 1, i + 2)
+            node._left = recursive_init(level - 1, i + 1)
+            node._right = recursive_init(level - 1, i + 2)
             return node
 
         self._root = recursive_init(self._tree_height, 0)
