@@ -39,7 +39,7 @@ class Client:
         self._key = Fernet.generate_key()
         self._cipher = Fernet(self._key)
 
-    def remap_block(self, block_id: int):
+    def _remap_block(self, block_id: int):
         new_position = random.randint(0, int(2**self._tree_height) - 1)
         self._position_map[block_id] = new_position
         self._logger.debug(f"Block {block_id} remapped to position {new_position}.")
@@ -47,7 +47,7 @@ class Client:
     def store_data(self, server: Server, id: int, data: str):
         self._logger.info(f"Storing data for block {id}.")
         leaf_index = self._position_map.get(id)
-        self.remap_block(id)
+        self._remap_block(id)
         if not leaf_index:  # if new block
             leaf_index = self._position_map.get(id)
         self._logger.debug(f"Leaf index for block {id}: {leaf_index}.")
@@ -70,7 +70,7 @@ class Client:
         if leaf_index is None:
             self._logger.warning(f"Block {id} not found.")
             return None
-        self.remap_block(id)
+        self._remap_block(id)
         path = server.get_path(leaf_index)
         path = self._decrypt_and_parse_path(path)
         self._update_stash(path, id)
