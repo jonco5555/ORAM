@@ -1,12 +1,3 @@
-# Z Number of blocks in a bucket
-# L Number of levels in the tree
-# N Number of blocks in the tree
-# N / Z Total number of buckets
-# L = log(N / Z + 1) - 1
-# N = Z * (2 ** (L + 1) - 1)
-# 2 ** L Number of leaves =  (N / Z) / 2
-
-
 import logging
 import math
 from typing import List
@@ -30,11 +21,9 @@ class TreeNode[T]:
 
 
 class Server:
-    def __init__(self, num_blocks: int = 124, blocks_per_bucket: int = 4) -> None:
+    def __init__(self, num_blocks: int = 100) -> None:
         self._logger = logging.getLogger(__name__)
-        self._num_blocks = num_blocks
-        self._blocks_per_bucket = blocks_per_bucket
-        self._tree_height = int(math.log2(num_blocks // blocks_per_bucket + 1)) - 1
+        self._tree_height = round(math.log2(num_blocks))
         self._root: TreeNode[Bucket] = None
 
     def initialize_tree(self, elements: List[List[bytes]]) -> TreeNode[Bucket]:

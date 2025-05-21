@@ -9,10 +9,8 @@ def test_store_data():
     block_id = 1
     block_data = "data"
     leaf_index = 0
-    blocks_per_bucket = 2
-    num_blocks = 14  # L=2
-    server = Server(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
-    client = Client(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    server = Server()
+    client = Client()
     client._initialize_server_tree(server)
 
     # Act
@@ -31,11 +29,9 @@ def test_retrieve_after_store_new_leaf_id():
     block_id = 1
     block_data = "data"
     leaf_index = 0
-    new_leaf_index = 3
-    blocks_per_bucket = 2
-    num_blocks = 14  # L=2
-    server = Server(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
-    client = Client(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    server = Server()
+    client = Client()
+    new_leaf_index = 2**client._tree_height - 1
     client._initialize_server_tree(server)
 
     # Act
@@ -60,10 +56,8 @@ def test_retrieve_after_store_same_leaf_id():
     block_id = 1
     block_data = "data"
     leaf_index = 0
-    blocks_per_bucket = 2
-    num_blocks = 14  # L=2
-    server = Server(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
-    client = Client(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    server = Server()
+    client = Client()
     client._initialize_server_tree(server)
 
     # Act
@@ -83,6 +77,8 @@ def test_encryption():
     path = [
         Bucket(blocks=[Block(id=1, data="abcd"), Block()]),
         Bucket(2),
+        Bucket(2),
+        Bucket(2),
     ]
 
     # Act
@@ -98,10 +94,8 @@ def test_delete():
     # Arrange
     block_id = 1
     block_data = "data"
-    blocks_per_bucket = 2
-    num_blocks = 14
-    server = Server(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)  # L=2
-    client = Client(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    server = Server()
+    client = Client()
     client._initialize_server_tree(server)
 
     # Act
@@ -116,10 +110,8 @@ def test_delete():
 def test_retrieve_not_found():
     # Arrange
     block_id = 1
-    blocks_per_bucket = 2
-    num_blocks = 14
-    server = Server(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)  # L=2
-    client = Client(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    server = Server()
+    client = Client()
     client._initialize_server_tree(server)
 
     # Act
@@ -133,10 +125,8 @@ def test_flow():
     # Arrange
     block_id = 1
     block_data = "data"
-    blocks_per_bucket = 2
-    num_blocks = 14
-    server = Server(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)  # L=2
-    client = Client(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    server = Server()
+    client = Client()
     client._initialize_server_tree(server)
 
     # Act & Assert
@@ -154,10 +144,8 @@ def test_smart_stash_retrieval():
     # Arrange
     block_id = 1
     block_data = "data"
-    blocks_per_bucket = 2
-    num_blocks = 14
-    server = Server(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)  # L=2
-    client = Client(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    server = Server()
+    client = Client()
     client._initialize_server_tree(server)
 
     # Act
@@ -182,9 +170,7 @@ def test_smart_stash_retrieval():
 
 def test_reachable_leaves():
     # Arrange
-    blocks_per_bucket = 2
-    num_blocks = 30  # L = 3
-    client = Client(num_blocks=num_blocks, blocks_per_bucket=blocks_per_bucket)
+    client = Client(num_blocks=8)
 
     leaf_index = 5
     reachable_leaves = [[0, 1, 2, 3, 4, 5, 6, 7], [4, 5, 6, 7], [4, 5], [5]]

@@ -29,11 +29,11 @@ class Bucket(BaseModel):
 
 
 class Client:
-    def __init__(self, num_blocks: int = 124, blocks_per_bucket: int = 4) -> None:
+    def __init__(self, num_blocks: int = 100, blocks_per_bucket: int = 4) -> None:
         self._logger = logging.getLogger(__name__)
         self._num_blocks = num_blocks
         self._num_blocks_per_bucket = blocks_per_bucket
-        self._tree_height = int(math.log2(num_blocks // blocks_per_bucket + 1)) - 1
+        self._tree_height = round(math.log2(num_blocks))
         self._stash: dict[int, Block] = {}  # Changed from List to dict
         self._position_map = {}
         self._key = Fernet.generate_key()
@@ -166,7 +166,7 @@ class Client:
     def _initialize_server_tree(self, server: Server) -> None:
         dummy_elements = [
             Bucket(self._num_blocks_per_bucket)
-            for _ in range(self._num_blocks // self._num_blocks_per_bucket)
+            for _ in range(int(2 ** (self._tree_height + 1) - 1))
         ]
         dummy_elements = self._unparse_and_encrypt_path(dummy_elements)
         server.initialize_tree(dummy_elements)
@@ -179,22 +179,3 @@ class Client:
         else:
             for block_id, block in self._stash.items():
                 print(f"Block ID: {block_id}, Data: {block.data}")
-
-
-if __name__ == "__main__":
-    server = Server(num_blocks=14, blocks_per_bucket=2)
-    client = Client(num_blocks=14, blocks_per_bucket=2)
-    client._initialize_server_tree(server)
-    server.print_tree()
-    client.store_data(server, 1, "abcd")
-    server.print_tree()
-    print(client._stash)
-    client.store_data(server, 2, "efgh")
-    server.print_tree()
-    print(client._stash)
-    print(client.retrieve_data(server, 2))
-    server.print_tree()
-    print(client._stash)
-    client.delete_data(server, 2)
-    server.print_tree()
-    print(client._stash)
