@@ -1,17 +1,36 @@
 from unittest.mock import patch
 
+import pytest
+
 from src.client import Block, Bucket, Client
 from src.server import Server
 
 
-def test_store_data():
+@pytest.fixture
+def server() -> Server:
+    return Server()
+
+
+@pytest.fixture
+def client(server: Server) -> Client:
+    c = Client()
+    c._initialize_server_tree(server)
+    return c
+
+
+@pytest.fixture
+def block_id() -> int:
+    return 1
+
+
+@pytest.fixture
+def block_data() -> str:
+    return "data"
+
+
+def test_store_data(client: Client, server: Server, block_id: int, block_data: str):
     # Arrange
-    block_id = 1
-    block_data = "data"
     leaf_index = 0
-    server = Server()
-    client = Client()
-    client._initialize_server_tree(server)
 
     # Act
     with patch("random.randint", return_value=leaf_index):
@@ -24,15 +43,12 @@ def test_store_data():
     assert client._position_map.get(block_id) == leaf_index
 
 
-def test_retrieve_after_store_new_leaf_id():
+def test_retrieve_after_store_new_leaf_id(
+    client: Client, server: Server, block_id: int, block_data: str
+):
     # Arrange
-    block_id = 1
-    block_data = "data"
     leaf_index = 0
-    server = Server()
-    client = Client()
     new_leaf_index = 2**client._tree_height - 1
-    client._initialize_server_tree(server)
 
     # Act
     with patch("random.randint", return_value=leaf_index):
@@ -51,14 +67,11 @@ def test_retrieve_after_store_new_leaf_id():
     assert client._position_map.get(block_id) == new_leaf_index
 
 
-def test_retrieve_after_store_same_leaf_id():
+def test_retrieve_after_store_same_leaf_id(
+    client: Client, server: Server, block_id: int, block_data: str
+):
     # Arrange
-    block_id = 1
-    block_data = "data"
     leaf_index = 0
-    server = Server()
-    client = Client()
-    client._initialize_server_tree(server)
 
     # Act
     with patch("random.randint", return_value=leaf_index):
@@ -71,11 +84,11 @@ def test_retrieve_after_store_same_leaf_id():
     assert block_id in client._position_map
 
 
-def test_encryption():
+def test_encryption(block_id: int, block_data: str):
     # Arrange
     client = Client(num_blocks=6, blocks_per_bucket=2)
     path = [
-        Bucket(blocks=[Block(id=1, data="abcd"), Block()]),
+        Bucket(blocks=[Block(id=block_id, data=block_data), Block()]),
         Bucket(2),
         Bucket(2),
         Bucket(2),
@@ -86,18 +99,11 @@ def test_encryption():
     decrypted_path = client._decrypt_and_parse_path(encrypted_path)
 
     # Assert
-    assert decrypted_path[0].blocks[0].id == 1
-    assert decrypted_path[0].blocks[0].data == "abcd"
+    assert decrypted_path[0].blocks[0].id == block_id
+    assert decrypted_path[0].blocks[0].data == block_data
 
 
-def test_delete():
-    # Arrange
-    block_id = 1
-    block_data = "data"
-    server = Server()
-    client = Client()
-    client._initialize_server_tree(server)
-
+def test_delete(client: Client, server: Server, block_id: int, block_data: str):
     # Act
     client.store_data(server, block_id, block_data)
     client.delete_data(server, block_id)
@@ -107,13 +113,7 @@ def test_delete():
     assert not client._position_map
 
 
-def test_retrieve_not_found():
-    # Arrange
-    block_id = 1
-    server = Server()
-    client = Client()
-    client._initialize_server_tree(server)
-
+def test_retrieve_not_found(client: Client, server: Server, block_id: int):
     # Act
     result = client.retrieve_data(server, block_id)
 
@@ -121,14 +121,7 @@ def test_retrieve_not_found():
     assert result is None  # Should return None if block is not found
 
 
-def test_flow():
-    # Arrange
-    block_id = 1
-    block_data = "data"
-    server = Server()
-    client = Client()
-    client._initialize_server_tree(server)
-
+def test_flow(client: Client, server: Server, block_id: int, block_data: str):
     # Act & Assert
     client.store_data(server, block_id, block_data)
     assert client.retrieve_data(server, block_id) == block_data
@@ -140,14 +133,9 @@ def test_flow():
     assert client.retrieve_data(server, 2) == block_data
 
 
-def test_smart_stash_retrieval():
-    # Arrange
-    block_id = 1
-    block_data = "data"
-    server = Server()
-    client = Client()
-    client._initialize_server_tree(server)
-
+def test_smart_stash_retrieval(
+    client: Client, server: Server, block_id: int, block_data: str
+):
     # Act
     with patch("random.randint", return_value=0):
         client.store_data(server, block_id, block_data)

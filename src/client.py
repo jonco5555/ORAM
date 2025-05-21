@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from src.server import Server
 
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
@@ -51,17 +51,13 @@ class Client:
         if not leaf_index:  # if new block
             leaf_index = self._position_map.get(id)
         self._logger.debug(f"Leaf index for block {id}: {leaf_index}.")
-        path = server.get_path(leaf_index)
-        path = self._decrypt_and_parse_path(path)
-        self._update_stash(path, id)
+        self._fetch_decrypt_and_update_stash(leaf_index, server)
 
         # write new data to stash
         self._stash[id] = Block(id=id, data=data)
         self._logger.debug(f"Stash updated with block {id}.")
 
-        path = self._build_new_path(leaf_index)
-        path = self._unparse_and_encrypt_path(path)
-        server.set_path(path, leaf_index)
+        self._build_encrypt_and_set_path(leaf_index, server)
         self._logger.info(f"Data for block {id} stored successfully.")
 
     def retrieve_data(self, server: Server, id: int) -> str:
@@ -71,31 +67,25 @@ class Client:
             self._logger.warning(f"Block {id} not found.")
             return None
         self._remap_block(id)
-        path = server.get_path(leaf_index)
-        path = self._decrypt_and_parse_path(path)
-        self._update_stash(path, id)
+        self._fetch_decrypt_and_update_stash(leaf_index, server)
+
         block = self._stash.get(id)
-        path = self._build_new_path(leaf_index)
-        path = self._unparse_and_encrypt_path(path)
-        server.set_path(path, leaf_index)
+
+        self._build_encrypt_and_set_path(leaf_index, server)
         self._logger.info(f"Data for block {id} retrieved successfully.")
         return block.data
 
-    def delete_data(self, server: Server, id: int) -> None:
+    def delete_data(self, server: Server, id: int, data=None) -> None:
         self._logger.info(f"Deleting data for block {id}.")
         leaf_index = self._position_map.get(id)
         if leaf_index is None:
             self._logger.warning(f"Block {id} not found.")
             return None
-        path = server.get_path(leaf_index)
-        path = self._decrypt_and_parse_path(path)
-        self._update_stash(path, id)
+        self._fetch_decrypt_and_update_stash(leaf_index, server)
         del self._stash[id]
         del self._position_map[id]
         self._logger.debug(f"Block {id} removed from stash.")
-        path = self._build_new_path(leaf_index)
-        path = self._unparse_and_encrypt_path(path)
-        server.set_path(path, leaf_index)
+        self._build_encrypt_and_set_path(leaf_index, server)
         self._logger.info(f"Data for block {id} deleted successfully.")
 
     def _update_stash(self, path: List[Bucket], id: int) -> None:
@@ -171,11 +161,12 @@ class Client:
         dummy_elements = self._unparse_and_encrypt_path(dummy_elements)
         server.initialize_tree(dummy_elements)
 
-    def print_stash(self):
-        """Prints the current contents of the stash."""
-        self._logger.info("Printing stash contents:")
-        if not self._stash:
-            print("[]")
-        else:
-            for block_id, block in self._stash.items():
-                print(f"Block ID: {block_id}, Data: {block.data}")
+    def _fetch_decrypt_and_update_stash(self, leaf_index: int, server: Server) -> None:
+        path = server.get_path(leaf_index)
+        path = self._decrypt_and_parse_path(path)
+        self._update_stash(path, id)
+
+    def _build_encrypt_and_set_path(self, leaf_index: int, server: Server) -> None:
+        path = self._build_new_path(leaf_index)
+        path = self._unparse_and_encrypt_path(path)
+        server.set_path(path, leaf_index)
