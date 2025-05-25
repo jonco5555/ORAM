@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from src.server import Server
 
 logging.basicConfig(
-    level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
@@ -82,9 +82,12 @@ class Client:
             self._logger.warning(f"Block {id} not found.")
             return None
         self._fetch_decrypt_and_update_stash(leaf_index, server)
+
+        # remove block from stash and position map
         del self._stash[id]
         del self._position_map[id]
         self._logger.debug(f"Block {id} removed from stash.")
+
         self._build_encrypt_and_set_path(leaf_index, server)
         self._logger.info(f"Data for block {id} deleted successfully.")
 
@@ -96,12 +99,38 @@ class Client:
                     self._stash[block.id] = block
 
     def _build_new_path(self, leaf_index: int) -> List[Bucket]:
+        """
+        Constructs a new path from the leaf node up to the root, filling each bucket along
+        the path with blocks from the stash that are reachable from the current node in the path.
+        For example:
+            0
+           / \
+          1   2
+         / \ / \
+        3  4 5  6
+        When we build the path for leaf index 3, we will first fill the bucket of node 3 with
+        all the blocks that are mapped to node 3 because it is a leaf.
+        Then, we got to the next node in the path -> 1.
+        We will node 1 bucket with all the blocks that are mapped to leaves that are reachable
+        from node 1, which are 3 and 4.
+        Finally, we will fill the bucket of the root node with all the blocks that are left in
+        the stash, because every leaf is reachable from the root.
+
+        Args:
+            leaf_index (int): The index of the leaf node for which the path is being built
+        Returns:
+            List[Bucket]: A list of Bucket objects representing the path from the leaf to
+                the root, with each bucket filled with as many appropriate blocks from the
+                stash as possible
+        Side Effects:
+            Removes blocks from the stash that are placed into the path buckets.
+        """
         self._logger.debug(f"Building new path for leaf index {leaf_index}.")
         path = [
             Bucket(self._num_blocks_per_bucket) for _ in range(self._tree_height + 1)
         ]
 
-        # Iterate over the tree levels from leaf to root
+        # iterate over the tree levels from leaf to root
         for level in range(self._tree_height, -1, -1):
             reachable_leaves = self._calculate_reachable_leaves(leaf_index, level)
             bucket_index = self._tree_height - level
@@ -122,15 +151,15 @@ class Client:
 
     def _calculate_reachable_leaves(self, leaf_index: int, level: int) -> List[int]:
         binary = format(leaf_index, f"0{self._tree_height}b")
-        # Get first level bits (path so far)
+        # get first level bits (path so far)
         path_bits = binary[:level]
-        # Compute base index: decimal of path_bits * 2^(L-level)
+        # compute base index: decimal of path_bits * 2^(L-level)
         base = (
             int(path_bits, 2) * (1 << (self._tree_height - level)) if path_bits else 0
         )
-        # Number of reachable leaves: 2^(L-level)
+        # number of reachable leaves: 2^(L-level)
         num_leaves = 1 << (self._tree_height - level)
-        # List of reachable leaves
+        # list of reachable leaves
         return list(range(base, base + num_leaves))
 
     def _decrypt_and_parse_path(self, path: List[List[bytes]]) -> List[Bucket]:

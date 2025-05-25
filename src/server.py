@@ -5,7 +5,7 @@ from typing import List
 from pydantic import BaseModel
 
 logging.basicConfig(
-    level=logging.WARNING, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
@@ -50,7 +50,7 @@ class Server:
             leaf_index (int): The index of the leaf node to retrieve the path for
 
         Returns:
-            List[List[str]]: A list of buckets represented as list of bytes, representing
+            List[List[bytes]]: A list of buckets represented as list of bytes, representing
               the values of the nodes along the path from the root to the specified leaf
 
         Raises:
