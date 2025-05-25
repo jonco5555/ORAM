@@ -3,7 +3,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: README.pdf
       - id: end-of-file-fixer
+        exclude: README.pdf
       - id: check-yaml
       - id: check-added-large-files
 

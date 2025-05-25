@@ -3,7 +3,7 @@
 
 ## Architecture Overview
 
-This project implements a [Path ORAM](https://eprint.iacr.org/2013/280.pdf) system in Python, consisting of a `Client` and a `Server`:
+[This project](https://github.com/jonco5555/ORAM) implements a [Path ORAM](https://eprint.iacr.org/2013/280.pdf) system in Python, consisting of a `Client` and a `Server`:
 
 - **Server**: Stores the data as a binary tree of encrypted buckets. Each bucket contains a fixed number of blocks, and each block can hold a data item.
 - **Client**: Maintains a stash (temporary storage), a position map (mapping block IDs to leaf indices), and handles encryption/decryption. The client is responsible for all logic related to data access, privacy, and remapping.
